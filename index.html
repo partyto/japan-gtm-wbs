@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>일본 GTM WBS 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface2: #334155;
+  --border: #475569;
+  --text: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --accent: #3b82f6;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --orange: #f97316;
+  --red: #ef4444;
+  --purple: #a855f7;
+  --cyan: #06b6d4;
+  --pink: #ec4899;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.container { max-width: 1600px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: var(--surface);
+  border-radius: 12px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+.header h1 { font-size: 22px; font-weight: 700; }
+.header h1 span { color: var(--accent); }
+.header-meta { text-align: right; font-size: 13px; color: var(--text-secondary); }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Settings Panel */
+.settings-panel {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.settings-panel.active { display: block; }
+.settings-panel label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+.settings-panel input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.settings-panel .hint { font-size: 12px; color: var(--text-secondary); margin-top: -8px; margin-bottom: 12px; }
+
+/* Buttons */
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+.btn:hover { background: var(--border); }
+.btn-primary { background: var(--accent); border-color: var(--accent); }
+.btn-primary:hover { background: #2563eb; }
+
+/* KPI Cards */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.kpi-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-value { font-size: 28px; font-weight: 700; margin: 4px 0; }
+.kpi-sub { font-size: 12px; color: var(--text-secondary); }
+
+/* Phase Progress */
+.phase-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phase-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.phase-label {
+  width: 80px;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.phase-bar-bg {
+  flex: 1;
+  height: 24px;
+  background: var(--bg);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.phase-bar {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.8s ease;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 40px;
+}
+.phase-stats { width: 120px; font-size: 12px; color: var(--text-secondary); text-align: right; flex-shrink: 0; }
+
+/* Gantt Chart */
+.gantt-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.gantt-wrapper { min-width: 900px; }
+.gantt-header {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+.gantt-label-col { width: 260px; flex-shrink: 0; font-size: 12px; color: var(--text-secondary); font-weight: 600; }
+.gantt-timeline { flex: 1; display: flex; position: relative; }
+.gantt-month {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-left: 1px solid var(--border);
+  padding: 0 4px;
+}
+.gantt-month:first-child { border-left: none; }
+.gantt-row {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+}
+.gantt-row:hover { background: rgba(59, 130, 246, 0.05); }
+.gantt-row-label {
+  width: 260px;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding-right: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gantt-row-label .wbs-num { color: var(--text-secondary); font-size: 11px; width: 40px; flex-shrink: 0; }
+.gantt-row-timeline { flex: 1; position: relative; height: 100%; }
+.gantt-bar {
+  position: absolute;
+  height: 18px;
+  top: 7px;
+  border-radius: 4px;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  font-size: 10px;
+  color: white;
+  font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.gantt-bar:hover { opacity: 1; }
+.gantt-bar .progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: rgba(255,255,255,0.2);
+  border-radius: 4px;
+}
+.gantt-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--red);
+  z-index: 5;
+  opacity: 0.7;
+}
+.gantt-today::after {
+  content: '오늘';
+  position: absolute;
+  top: -18px;
+  left: -12px;
+  font-size: 10px;
+  color: var(--red);
+  font-weight: 600;
+}
+.gantt-category-row {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: rgba(59, 130, 246, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+.gantt-category-label {
+  width: 260px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  padding-left: 4px;
+  color: var(--accent);
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Category Summary */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.category-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.category-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.category-mini-bar {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.category-mini-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+.category-stats { display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); }
+.category-stat { display: flex; align-items: center; gap: 4px; }
+.category-stat .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Risk Board */
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.risk-col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.risk-col h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.risk-item {
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.risk-item .task-name { font-weight: 600; margin-bottom: 2px; }
+.risk-item .blocker { color: var(--red); font-size: 11px; }
+
+/* Task Table */
+.table-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.table-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.filter-btn {
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+.filter-btn.active, .filter-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+th:hover { color: var(--text); }
+td {
+  padding: 8px;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+  white-space: nowrap;
+}
+tr:hover td { background: rgba(59, 130, 246, 0.05); }
+.progress-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mini-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.mini-fill { height: 100%; border-radius: 2px; }
+
+/* Tooltip */
+.tooltip {
+  display: none;
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+  max-width: 300px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.tooltip.active { display: block; }
+.tooltip h4 { font-size: 14px; margin-bottom: 6px; }
+.tooltip .detail { color: var(--text-secondary); margin-bottom: 2px; }
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-secondary);
+}
+.loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .risk-grid { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .header { flex-direction: column; gap: 12px; text-align: center; }
+  .header-meta { text-align: center; }
+}
+
+/* Print */
+@media print {
+  body { background: white; color: black; }
+  .btn, .settings-panel, .table-filters { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1><span>Japan GTM</span> WBS Dashboard</h1>
+      <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">일본 대기시장 진출 프로젝트</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="toggleSettings()">Settings</button>
+      <button class="btn btn-primary" onclick="refreshData()">Refresh</button>
+    </div>
+    <div class="header-meta">
+      <div id="lastUpdate">-</div>
+      <div id="dataSource">로컬 데이터</div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings-panel" id="settingsPanel">
+    <div class="section-title">데이터 소스 설정</div>
+    <label>구글 스프레드시트 CSV URL</label>
+    <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/pub?output=csv">
+    <div class="hint">스프레드시트 > 파일 > 웹에 게시 > CSV 형식으로 게시한 URL을 입력하세요</div>
+    <label>또는 로컬 CSV 파일 경로</label>
+    <input type="text" id="localCsv" value="sample-data.csv" placeholder="sample-data.csv">
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary" onclick="saveSettings()">저장 및 새로고침</button>
+      <button class="btn" onclick="toggleSettings()">닫기</button>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- Phase Progress -->
+  <div class="phase-section" id="phaseSection">
+    <div class="section-title">Phase별 진행 현황</div>
+    <div id="phaseProgress"></div>
+  </div>
+
+  <!-- Gantt Chart -->
+  <div class="gantt-container">
+    <div class="section-title">타임라인 (간트 차트)</div>
+    <div class="gantt-wrapper" id="ganttChart"></div>
+  </div>
+
+  <!-- Category Summary -->
+  <div class="section-title" style="margin-bottom:12px;">카테고리별 현황</div>
+  <div class="category-grid" id="categoryGrid"></div>
+
+  <!-- Risk Board -->
+  <div class="section-title" style="margin-bottom:12px;">리스크 보드</div>
+  <div class="risk-grid" id="riskGrid"></div>
+
+  <!-- Task Table -->
+  <div class="table-container">
+    <div class="section-title">전체 태스크 목록</div>
+    <div class="table-filters" id="tableFilters"></div>
+    <div style="overflow-x:auto;">
+      <table id="taskTable">
+        <thead id="taskTableHead"></thead>
+        <tbody id="taskTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ============ CONFIG ============
+const CONFIG = {
+  sheetUrl: localStorage.getItem('wbs_sheet_url') || '',
+  localCsv: localStorage.getItem('wbs_local_csv') || 'sample-data.csv',
+};
+
+const STATUS_COLORS = {
+  '진행 중': 'var(--accent)',
+  '완료': 'var(--green)',
+  '시작 전': 'var(--text-secondary)',
+  '대기 중': 'var(--yellow)',
+  '검토 중': 'var(--purple)',
+  '블로킹': 'var(--red)',
+  '보류': 'var(--orange)',
+};
+
+const PHASE_COLORS = {
+  'Phase 0': 'var(--cyan)',
+  'Phase 1': 'var(--accent)',
+  'Phase 2': 'var(--purple)',
+};
+
+const RISK_COLORS = {
+  '높음': 'var(--red)',
+  '중간': 'var(--yellow)',
+  '낮음': 'var(--green)',
+};
+
+const CATEGORY_COLORS = {
+  '사업/영업': '#3b82f6',
+  'B2B 프로덕트': '#8b5cf6',
+  'B2C 프로덕트': '#a855f7',
+  '인프라/시스템': '#06b6d4',
+  '법인설립/법무': '#f97316',
+  '장비/물류': '#eab308',
+  '고객센터/운영': '#22c55e',
+  '운영지원': '#14b8a6',
+  '조직/인력': '#ec4899',
+};
+
+let allData = [];
+let currentFilter = 'all';
+
+// ============ DATA LOADING ============
+async function loadData() {
+  const url = CONFIG.sheetUrl || CONFIG.localCsv;
+  document.getElementById('dataSource').textContent = CONFIG.sheetUrl ? '구글 스프레드시트 연동' : '로컬 CSV';
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    const result = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
+    allData = result.data.map(row => ({
+      phase: (row['Phase'] || '').trim(),
+      wbs: (row['WBS#'] || '').trim(),
+      category: (row['구분'] || '').trim(),
+      task: (row['Task'] || '').trim(),
+      subTask: (row['세부Task'] || '').trim(),
+      team: (row['담당팀'] || '').trim(),
+      assignee: (row['담당자'] || '').trim(),
+      priority: (row['우선순위'] || '').trim(),
+      status: (row['진행상태'] || '').trim(),
+      risk: (row['리스크수준'] || '').trim(),
+      effort: parseInt(row['예상공수(일)']) || 0,
+      startDate: row['시작일'] || '',
+      endDate: row['종료일'] || '',
+      progress: parseInt(row['진행률(%)']) || 0,
+      blocker: (row['블로커/이슈'] || '').trim(),
+      link: (row['참고링크'] || '').trim(),
+    }));
+
+    document.getElementById('lastUpdate').textContent = `업데이트: ${new Date().toLocaleString('ko-KR')}`;
+    renderAll();
+  } catch (e) {
+    console.error('Data load error:', e);
+    document.getElementById('kpiGrid').innerHTML = `
+      <div class="kpi-card" style="grid-column: 1/-1; text-align:center; padding:40px;">
+        <div style="color:var(--red); font-size:16px; font-weight:600;">데이터 로드 실패</div>
+        <div style="color:var(--text-secondary); margin-top:8px;">${e.message}</div>
+        <div style="color:var(--text-secondary); margin-top:4px;">Settings에서 데이터 소스를 확인해주세요.</div>
+      </div>`;
+  }
+}
+
+// ============ RENDER ============
+function renderAll() {
+  renderKPI();
+  renderPhaseProgress();
+  renderGantt();
+  renderCategories();
+  renderRiskBoard();
+  renderTaskTable();
+}
+
+function renderKPI() {
+  const total = allData.length;
+  const done = allData.filter(d => d.status === '완료').length;
+  const inProgress = allData.filter(d => d.status === '진행 중').length;
+  const blocked = allData.filter(d => d.status === '블로킹' || d.blocker).length;
+  const avgProgress = total ? Math.round(allData.reduce((s, d) => s + d.progress, 0) / total) : 0;
+  const p0Tasks = allData.filter(d => d.priority === 'P0');
+  const p0Done = p0Tasks.filter(d => d.status === '완료').length;
+  const highRisk = allData.filter(d => d.risk === '높음').length;
+
+  // Calculate overdue
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdue = allData.filter(d => {
+    if (!d.endDate || d.status === '완료') return false;
+    return new Date(d.endDate) < today;
+  }).length;
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">전체 진행률</div>
+      <div class="kpi-value" style="color:var(--accent)">${avgProgress}%</div>
+      <div class="kpi-sub">${done}/${total} 완료</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">진행 중</div>
+      <div class="kpi-value" style="color:var(--green)">${inProgress}</div>
+      <div class="kpi-sub">현재 작업 중인 태스크</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">P0 태스크</div>
+      <div class="kpi-value" style="color:var(--orange)">${p0Done}/${p0Tasks.length}</div>
+      <div class="kpi-sub">최우선순위 완료율</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">블로커/이슈</div>
+      <div class="kpi-value" style="color:var(--red)">${blocked}</div>
+      <div class="kpi-sub">주의 필요 항목</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">높은 리스크</div>
+      <div class="kpi-value" style="color:var(--red)">${highRisk}</div>
+      <div class="kpi-sub">즉시 대응 필요</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">지연 태스크</div>
+      <div class="kpi-value" style="color:${overdue > 0 ? 'var(--red)' : 'var(--green)'}">${overdue}</div>
+      <div class="kpi-sub">종료일 초과 항목</div>
+    </div>
+  `;
+}
+
+function renderPhaseProgress() {
+  const phases = ['Phase 0', 'Phase 1', 'Phase 2'];
+  let html = '';
+  phases.forEach(phase => {
+    const items = allData.filter(d => d.phase === phase);
+    if (!items.length) return;
+    const avg = Math.round(items.reduce((s, d) => s + d.progress, 0) / items.length);
+    const done = items.filter(d => d.status === '완료').length;
+    const color = PHASE_COLORS[phase] || 'var(--accent)';
+    html += `
+      <div class="phase-row">
+        <div class="phase-label" style="color:${color}">${phase}</div>
+        <div class="phase-bar-bg">
+          <div class="phase-bar" style="width:${Math.max(avg, 5)}%; background:${color}">
+            ${avg}%
+          </div>
+        </div>
+        <div class="phase-stats">${done}/${items.length} 완료</div>
+      </div>`;
+  });
+  document.getElementById('phaseProgress').innerHTML = html;
+}
+
+function renderGantt() {
+  const container = document.getElementById('ganttChart');
+  const dated = allData.filter(d => d.startDate && d.endDate);
+  if (!dated.length) {
+    container.innerHTML = '<div style="text-align:center; color:var(--text-secondary); padding:20px;">일정 데이터가 없습니다.</div>';
+    return;
+  }
+
+  // Calculate date range
+  const allDates = dated.flatMap(d => [new Date(d.startDate), new Date(d.endDate)]);
+  let minDate = new Date(Math.min(...allDates));
+  let maxDate = new Date(Math.max(...allDates));
+  minDate.setDate(1); // Start of month
+  maxDate.setMonth(maxDate.getMonth() + 1, 0); // End of month
+
+  const totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
+  const today = new Date();
+
+  // Build month headers
+  const months = [];
+  let d = new Date(minDate);
+  while (d <= maxDate) {
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const daysInRange = Math.min((monthEnd - d) / (1000 * 60 * 60 * 24) + 1,
+                                 (maxDate - d) / (1000 * 60 * 60 * 24) + 1);
+    months.push({
+      label: `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`,
+      days: daysInRange,
+    });
+    d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  }
+
+  let html = `<div class="gantt-header">
+    <div class="gantt-label-col">태스크</div>
+    <div class="gantt-timeline">
+      ${months.map(m => `<div class="gantt-month" style="flex:${m.days}">${m.label}</div>`).join('')}
+    </div>
+  </div>`;
+
+  // Today line position
+  const todayPos = Math.max(0, Math.min(100, ((today - minDate) / (1000 * 60 * 60 * 24)) / totalDays * 100));
+
+  // Group by category
+  const categories = [...new Set(allData.map(d => d.category))];
+  categories.forEach(cat => {
+    const catItems = dated.filter(d => d.category === cat);
+    if (!catItems.length) return;
+
+    html += `<div class="gantt-category-row">
+      <div class="gantt-category-label">${cat}</div>
+      <div style="flex:1; position:relative;">
+        <div class="gantt-today" style="left:${todayPos}%"></div>
+      </div>
+    </div>`;
+
+    catItems.forEach(item => {
+      const start = new Date(item.startDate);
+      const end = new Date(item.endDate);
+      const left = ((start - minDate) / (1000 * 60 * 60 * 24)) / totalDays * 100;
+      const width = ((end - start) / (1000 * 60 * 60 * 24) + 1) / totalDays * 100;
+      const catColor = CATEGORY_COLORS[cat] || 'var(--accent)';
+      const statusColor = STATUS_COLORS[item.status] || 'var(--text-secondary)';
+      const isOverdue = end < today && item.status !== '완료';
+
+      html += `<div class="gantt-row">
+        <div class="gantt-row-label">
+          <span class="wbs-num">${item.wbs}</span>
+          <span style="overflow:hidden; text-overflow:ellipsis;">${item.subTask || item.task}</span>
+        </div>
+        <div class="gantt-row-timeline">
+          <div class="gantt-today" style="left:${todayPos}%"></div>
+          <div class="gantt-bar" style="left:${left}%; width:${Math.max(width, 0.5)}%; background:${isOverdue ? 'var(--red)' : catColor};"
+               onmouseenter="showTooltip(event, ${JSON.stringify(item).replace(/"/g, '&quot;')})"
+               onmouseleave="hideTooltip()">
+            <div class="progress-fill" style="width:${item.progress}%"></div>
+            ${width > 3 ? (item.subTask || item.task) : ''}
+          </div>
+        </div>
+      </div>`;
+    });
+  });
+
+  container.innerHTML = html;
+}
+
+function renderCategories() {
+  const categories = [...new Set(allData.map(d => d.category))];
+  let html = '';
+  categories.forEach(cat => {
+    const items = allData.filter(d => d.category === cat);
+    const avg = items.length ? Math.round(items.reduce((s, d) => s + d.progress, 0) / items.length) : 0;
+    const done = items.filter(d => d.status === '완료').length;
+    const inProg = items.filter(d => d.status === '진행 중').length;
+    const blocked = items.filter(d => d.blocker).length;
+    const color = CATEGORY_COLORS[cat] || 'var(--accent)';
+
+    html += `<div class="category-card">
+      <h3 style="color:${color}">${cat}</h3>
+      <div style="font-size:24px; font-weight:700;">${avg}%</div>
+      <div class="category-mini-bar">
+        <div class="category-mini-fill" style="width:${avg}%; background:${color}"></div>
+      </div>
+      <div class="category-stats">
+        <div class="category-stat"><span class="dot" style="background:var(--green)"></span>${done} 완료</div>
+        <div class="category-stat"><span class="dot" style="background:var(--accent)"></span>${inProg} 진행</div>
+        <div class="category-stat"><span class="dot" style="background:var(--text-secondary)"></span>${items.length - done - inProg} 대기</div>
+        ${blocked ? `<div class="category-stat"><span class="dot" style="background:var(--red)"></span>${blocked} 이슈</div>` : ''}
+      </div>
+    </div>`;
+  });
+  document.getElementById('categoryGrid').innerHTML = html;
+}
+
+function renderRiskBoard() {
+  const levels = ['높음', '중간', '낮음'];
+  const icons = { '높음': '🔴', '중간': '🟡', '낮음': '🟢' };
+  let html = '';
+  levels.forEach(level => {
+    const items = allData.filter(d => d.risk === level);
+    html += `<div class="risk-col">
+      <h3>${icons[level]} ${level} (${items.length})</h3>
+      ${items.map(item => `
+        <div class="risk-item">
+          <div class="task-name">${item.wbs} ${item.subTask || item.task}</div>
+          <div style="color:${STATUS_COLORS[item.status] || 'var(--text-secondary)'}; font-size:11px;">${item.status} · ${item.progress}%</div>
+          ${item.blocker ? `<div class="blocker">${item.blocker}</div>` : ''}
+        </div>
+      `).join('')}
+      ${!items.length ? '<div style="color:var(--text-secondary); font-size:12px; text-align:center; padding:12px;">없음</div>' : ''}
+    </div>`;
+  });
+  document.getElementById('riskGrid').innerHTML = html;
+}
+
+function renderTaskTable() {
+  // Filters
+  const statuses = ['all', ...new Set(allData.map(d => d.status).filter(Boolean))];
+  document.getElementById('tableFilters').innerHTML = statuses.map(s =>
+    `<button class="filter-btn ${currentFilter === s ? 'active' : ''}" onclick="setFilter('${s}')">${s === 'all' ? '전체' : s}</button>`
+  ).join('');
+
+  // Header
+  document.getElementById('taskTableHead').innerHTML = `<tr>
+    <th>Phase</th><th>WBS#</th><th>구분</th><th>Task</th><th>담당</th>
+    <th>우선순위</th><th>상태</th><th>리스크</th><th>시작일</th><th>종료일</th><th>진행률</th><th>이슈</th>
+  </tr>`;
+
+  // Body
+  const filtered = currentFilter === 'all' ? allData : allData.filter(d => d.status === currentFilter);
+  document.getElementById('taskTableBody').innerHTML = filtered.map(item => {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const isOverdue = item.endDate && new Date(item.endDate) < today && item.status !== '완료';
+    const progressColor = item.progress >= 80 ? 'var(--green)' : item.progress >= 40 ? 'var(--yellow)' : 'var(--accent)';
+
+    return `<tr style="${isOverdue ? 'background:rgba(239,68,68,0.08)' : ''}">
+      <td><span style="color:${PHASE_COLORS[item.phase] || 'inherit'}">${item.phase}</span></td>
+      <td style="font-weight:600">${item.wbs}</td>
+      <td style="color:${CATEGORY_COLORS[item.category] || 'inherit'}">${item.category}</td>
+      <td>${item.subTask || item.task}</td>
+      <td>${item.assignee || item.team || '-'}</td>
+      <td><span style="color:${item.priority === 'P0' ? 'var(--red)' : item.priority === 'P1' ? 'var(--yellow)' : 'var(--text-secondary)'};font-weight:600">${item.priority}</span></td>
+      <td><span class="status-badge" style="background:${STATUS_COLORS[item.status] || 'var(--surface2)'}22; color:${STATUS_COLORS[item.status] || 'var(--text-secondary)'}; border:1px solid ${STATUS_COLORS[item.status] || 'var(--border)'}44">${item.status}</span></td>
+      <td style="color:${RISK_COLORS[item.risk] || 'inherit'}">${item.risk}</td>
+      <td>${item.startDate ? item.startDate.slice(5) : '-'}</td>
+      <td style="${isOverdue ? 'color:var(--red);font-weight:600' : ''}">${item.endDate ? item.endDate.slice(5) : '-'}</td>
+      <td><div class="progress-cell"><div class="mini-bar"><div class="mini-fill" style="width:${item.progress}%;background:${progressColor}"></div></div>${item.progress}%</div></td>
+      <td style="color:var(--red); max-width:160px; overflow:hidden; text-overflow:ellipsis;" title="${item.blocker}">${item.blocker || ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ============ INTERACTIONS ============
+function setFilter(status) {
+  currentFilter = status;
+  renderTaskTable();
+}
+
+function showTooltip(e, item) {
+  const tt = document.getElementById('tooltip');
+  if (typeof item === 'string') item = JSON.parse(item);
+  tt.innerHTML = `
+    <h4>${item.wbs} ${item.subTask || item.task}</h4>
+    <div class="detail">카테고리: ${item.category}</div>
+    <div class="detail">담당: ${item.assignee || item.team || '-'}</div>
+    <div class="detail">상태: ${item.status} · 진행률: ${item.progress}%</div>
+    <div class="detail">기간: ${item.startDate} ~ ${item.endDate}</div>
+    <div class="detail">리스크: ${item.risk} · 우선순위: ${item.priority}</div>
+    ${item.blocker ? `<div style="color:var(--red); margin-top:4px;">⚠ ${item.blocker}</div>` : ''}
+  `;
+  tt.style.left = Math.min(e.clientX + 10, window.innerWidth - 320) + 'px';
+  tt.style.top = (e.clientY + 10) + 'px';
+  tt.classList.add('active');
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('active');
+}
+
+function toggleSettings() {
+  document.getElementById('settingsPanel').classList.toggle('active');
+  document.getElementById('sheetUrl').value = CONFIG.sheetUrl;
+  document.getElementById('localCsv').value = CONFIG.localCsv;
+}
+
+function saveSettings() {
+  CONFIG.sheetUrl = document.getElementById('sheetUrl').value.trim();
+  CONFIG.localCsv = document.getElementById('localCsv').value.trim();
+  localStorage.setItem('wbs_sheet_url', CONFIG.sheetUrl);
+  localStorage.setItem('wbs_local_csv', CONFIG.localCsv);
+  toggleSettings();
+  loadData();
+}
+
+function refreshData() {
+  loadData();
+}
+
+// ============ INIT ============
+loadData();
+</script>
+</body>
+</html>
