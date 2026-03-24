@@ -39,8 +39,9 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sa
 
 /* Filter pills */
 .filters { display:flex; gap:3px; margin-bottom:10px; flex-wrap:wrap; }
-.filter-pill { padding:3px 8px; border:1px solid #ddd; border-radius:12px; font-size:10px; cursor:pointer; background:transparent; color:#777; }
+.filter-pill { padding:3px 8px; border:1px solid #ddd; border-radius:12px; font-size:10px; cursor:pointer; background:transparent; color:#777; transition:all .15s; }
 .filter-pill.active { color:#fff; }
+.filter-pill.active::before { content:'✓ '; font-size:8px; }
 
 /* Timeline */
 .tl-header { display:flex; border-bottom:2px solid #e5e7eb; padding-bottom:3px; margin-bottom:2px; }
@@ -240,7 +241,7 @@ let tasks = DEFAULT_TASKS;
 let decisions = DEFAULT_DECISIONS;
 let resources = DEFAULT_RESOURCES;
 let currentTab = "timeline";
-let currentFilter = "all";
+let activeFilters = new Set(['all']); // multi-select set
 
 // ===== SETTINGS =====
 function toggleSettings() {
@@ -263,6 +264,21 @@ function clearSettings() {
   document.getElementById('sheetIdInput').value = '';
   tasks = DEFAULT_TASKS; decisions = DEFAULT_DECISIONS; resources = DEFAULT_RESOURCES;
   renderAll();
+}
+
+// ===== DATE → WEEK HELPERS =====
+const BASE_DATE_MS = new Date(2026, 0, 5).getTime(); // Jan 5, 2026
+const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+
+function dateToWeek(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return Math.round((d.getTime() - BASE_DATE_MS) / MS_PER_WEEK);
+}
+
+function weekToDateLabel(weekNum) {
+  const d = new Date(BASE_DATE_MS + weekNum * MS_PER_WEEK);
+  return (d.getMonth()+1) + '/' + d.getDate();
 }
 
 // ===== DATA LOADING =====
@@ -291,13 +307,30 @@ async function reloadData() {
   const [tRes, dRes, rRes] = await Promise.all([fetchSheet('tasks'), fetchSheet('decisions'), fetchSheet('resources')]);
 
   if (tRes && tRes.data.length) {
-    tasks = tRes.data.map(r => ({
-      id: r.id || '', n: r.name || '', c: r.category || 'A',
-      s: parseInt(r.startWeek) || 14, d: parseFloat(r.duration) || 1,
-      t: r.team || '', st: r.status || '미착수',
-      cr: parseBool(r.critical), dp: r.dependency || '',
-      nt: r.note || '', md: parseInt(r.mandays) || 0
-    }));
+    tasks = tRes.data.map(r => {
+      // Date-based: startDate + endDate → s, d
+      let s = parseInt(r.startWeek) || 14;
+      let d = parseFloat(r.duration) || 1;
+      let startDateStr = '', endDateStr = '';
+      if (r.startDate) {
+        const sw = dateToWeek(r.startDate);
+        if (sw !== null) { s = sw; startDateStr = r.startDate; }
+      }
+      if (r.startDate && r.endDate) {
+        const start = new Date(r.startDate), end = new Date(r.endDate);
+        if (!isNaN(start) && !isNaN(end)) {
+          d = Math.max(0.1, (end.getTime() - start.getTime()) / MS_PER_WEEK);
+          endDateStr = r.endDate;
+        }
+      }
+      return {
+        id: r.id || '', n: r.name || '', c: r.category || 'A',
+        s, d, t: r.team || '', st: r.status || '미착수',
+        cr: parseBool(r.critical), dp: r.dependency || '',
+        nt: r.note || '', md: parseInt(r.mandays) || 0,
+        startDate: startDateStr, endDate: endDateStr
+      };
+    });
   } else { tasks = DEFAULT_TASKS; }
 
   if (dRes && dRes.data.length) {
@@ -363,22 +396,40 @@ function renderTabs() {
 
 // ===== TIMELINE =====
 function setFilter(f) {
-  currentFilter = f;
+  if (f === 'all') {
+    activeFilters = new Set(['all']);
+  } else {
+    activeFilters.delete('all');
+    if (activeFilters.has(f)) {
+      activeFilters.delete(f);
+    } else {
+      activeFilters.add(f);
+    }
+    if (activeFilters.size === 0) activeFilters = new Set(['all']);
+  }
   renderTimeline();
+}
+
+function getFiltered() {
+  if (activeFilters.has('all')) return tasks;
+  return tasks.filter(t => {
+    if (activeFilters.has('critical') && t.cr) return true;
+    if (activeFilters.has(t.c)) return true;
+    return false;
+  });
 }
 
 function renderTimeline() {
   const el = document.getElementById('tab-timeline');
-  const filtered = currentFilter === 'all' ? tasks :
-    currentFilter === 'critical' ? tasks.filter(t => t.cr) :
-    tasks.filter(t => t.c === currentFilter);
+  const filtered = getFiltered();
 
   let html = '';
-  // Filters
+  // Filters — multi-select hint
+  html += '<div style="font-size:9px;opacity:.4;margin-bottom:4px">여러 항목 동시 선택 가능</div>';
   html += '<div class="filters">';
   FILTER_BTNS.forEach(([k, v]) => {
     const cnt = k === 'all' ? tasks.length : k === 'critical' ? tasks.filter(t => t.cr).length : tasks.filter(t => t.c === k).length;
-    const active = currentFilter === k;
+    const active = activeFilters.has(k);
     const bg = active ? (CC[k] || '#333') : 'transparent';
     const border = active ? (CC[k] || '#333') : '#ddd';
     const color = active ? '#fff' : '#777';
@@ -401,10 +452,9 @@ function renderTimeline() {
   });
   html += '</div></div>';
 
-  // Categories
+  // Categories — show if any task in this cat passes filter
   const cats = Object.entries(CN);
   cats.forEach(([cat, catName]) => {
-    if (currentFilter !== 'all' && currentFilter !== 'critical' && currentFilter !== cat) return;
     const ct = filtered.filter(t => t.c === cat);
     if (!ct.length) return;
 
@@ -459,8 +509,10 @@ function renderTable() {
     html += `<td style="font-weight:${t.cr?700:400};font-size:11px">${t.n}</td>`;
     html += `<td><span class="cat-tag" style="background:${CC[t.c]}">${catLabel}</span></td>`;
     html += `<td style="text-align:center;font-size:10px">${t.md||'-'}</td>`;
-    html += `<td style="text-align:center;font-size:10px">W${t.s}</td>`;
-    html += `<td style="text-align:center;font-size:10px">${t.d}주</td>`;
+    const startLabel = t.startDate ? t.startDate.replace(/^\d{4}-/, '') : `W${t.s}`;
+    const endLabel = t.endDate ? t.endDate.replace(/^\d{4}-/, '') : `+${Math.round(t.d*10)/10}주`;
+    html += `<td style="text-align:center;font-size:10px">${startLabel}</td>`;
+    html += `<td style="text-align:center;font-size:10px">${endLabel}</td>`;
     html += `<td style="font-size:9px">${t.t}</td>`;
     html += `<td><span class="tl-status" style="background:${SC[t.st]||'#ccc'}">${t.st}</span></td>`;
     html += `<td style="font-size:9px;color:#EF4444">${t.dp}</td>`;
