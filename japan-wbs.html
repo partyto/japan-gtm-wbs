@@ -134,7 +134,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sa
   <div class="settings" id="settingsPanel">
     <label>Google Spreadsheet ID</label>
     <input id="sheetIdInput" placeholder="예: 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
-    <div class="hint">스프레드시트 URL의 /d/ 와 /edit 사이의 문자열입니다. 시트 탭명: tasks, decisions, resources</div>
+    <div class="hint">스프레드시트 URL의 /d/ 와 /edit 사이의 문자열입니다. 시트 탭명: tasks, decisions, resources, categories</div>
     <div class="btns">
       <button class="btn-sm primary" onclick="saveSettings()">저장 후 새로고침</button>
       <button class="btn-sm" onclick="clearSettings()">초기화</button>
@@ -221,13 +221,31 @@ const DEFAULT_RESOURCES = [
   {team:"QA",be:0,fe:0,pm:0,na:0,ui:0,qa:2,note:"충원 검토"},
 ];
 
-// ===== CONSTANTS =====
-const CC = {A:"#3B82F6",B1:"#7C3AED",B2:"#A78BFA",B3:"#C4B5FD",BF:"#6D28D9",C:"#10B981",D:"#F59E0B",Q:"#EF4444"};
-const CN = {A:"A. 기존솔루션 현지화",B1:"B-1순위: 핵심기능·노쇼방지",B2:"B-2순위: 운영효율",B3:"B-3순위: 부가가치",BF:"B-기반: 인프라/법적",C:"C. 회원관리 체계",D:"D. 사업/법무",Q:"QA·런칭"};
+// ===== DEFAULT CATEGORIES (구글 시트 'categories' 탭으로 관리 가능) =====
+const DEFAULT_CATEGORIES = [
+  {key:"A",  name:"A. 기존솔루션 현지화",       color:"#3B82F6", filterLabel:"기존솔루션"},
+  {key:"B1", name:"B-1순위: 핵심기능·노쇼방지",  color:"#7C3AED", filterLabel:"1순위"},
+  {key:"B2", name:"B-2순위: 운영효율",           color:"#A78BFA", filterLabel:"2순위"},
+  {key:"B3", name:"B-3순위: 부가가치",           color:"#C4B5FD", filterLabel:"3순위"},
+  {key:"BF", name:"B-기반: 인프라/법적",         color:"#6D28D9", filterLabel:"인프라"},
+  {key:"C",  name:"C. 회원관리 체계",            color:"#10B981", filterLabel:"회원"},
+  {key:"D",  name:"D. 사업/법무",               color:"#F59E0B", filterLabel:"사업"},
+  {key:"Q",  name:"QA·런칭",                    color:"#EF4444", filterLabel:"QA"},
+];
+
+// ===== CONSTANTS (categories 시트 로드 전 기본값, reloadData 후 동적으로 재구성됨) =====
 const SC = {"최우선":"#DC2626","크리티컬":"#DC2626","진행중":"#2563EB","리서치":"#D97706","검토중":"#D97706","설계중":"#D97706","준비중":"#D97706","미착수":"#6B7280","대기":"#9CA3AF","LINE대기":"#9CA3AF","후순위":"#D1D5DB","2순위":"#D1D5DB","목표":"#DC2626","완료":"#059669"};
-const CAT_SHORT = {A:"기존",B1:"1순위",B2:"2순위",B3:"3순위",BF:"인프라",C:"회원",D:"사업",Q:"QA"};
-const FILTER_BTNS = [["all","전체"],["critical","크리티컬"],["A","기존솔루션"],["B1","1순위"],["B2","2순위"],["B3","3순위"],["BF","인프라"],["C","회원"],["D","사업"],["Q","QA"]];
 const MN = 10, MX = 31, TW = MX - MN;
+
+// 동적으로 재구성되는 카테고리 맵 (초기값은 DEFAULT_CATEGORIES 기반)
+let CC = {}, CN = {}, FILTER_BTNS = [];
+function buildCategoryMaps(cats) {
+  CC = {}; CN = {};
+  cats.forEach(c => { CC[c.key] = c.color; CN[c.key] = c.name; });
+  FILTER_BTNS = [["all","전체"],["critical","크리티컬"],
+    ...cats.map(c => [c.key, c.filterLabel])];
+}
+buildCategoryMaps(DEFAULT_CATEGORIES);
 
 // Build weeks array
 const WEEKS = [];
@@ -302,9 +320,15 @@ function parseBool(v) {
 
 async function reloadData() {
   const sid = localStorage.getItem('wbs_sheet_id');
-  if (!sid) { tasks = DEFAULT_TASKS; decisions = DEFAULT_DECISIONS; resources = DEFAULT_RESOURCES; renderAll(); return; }
+  if (!sid) {
+    buildCategoryMaps(DEFAULT_CATEGORIES);
+    tasks = DEFAULT_TASKS; decisions = DEFAULT_DECISIONS; resources = DEFAULT_RESOURCES;
+    renderAll(); return;
+  }
 
-  const [tRes, dRes, rRes] = await Promise.all([fetchSheet('tasks'), fetchSheet('decisions'), fetchSheet('resources')]);
+  const [tRes, dRes, rRes, cRes] = await Promise.all([
+    fetchSheet('tasks'), fetchSheet('decisions'), fetchSheet('resources'), fetchSheet('categories')
+  ]);
 
   if (tRes && tRes.data.length) {
     tasks = tRes.data.map(r => {
@@ -347,6 +371,15 @@ async function reloadData() {
       ui: parseInt(r.uiux) || 0, qa: parseInt(r.qa) || 0, note: r.note || ''
     }));
   } else { resources = DEFAULT_RESOURCES; }
+
+  // categories 시트: key, name, color, filterLabel
+  if (cRes && cRes.data.length) {
+    const cats = cRes.data
+      .filter(r => r.key && r.name && r.color)
+      .map(r => ({ key: r.key.trim(), name: r.name.trim(), color: r.color.trim(), filterLabel: (r.filterLabel || r.key).trim() }));
+    if (cats.length) buildCategoryMaps(cats);
+    else buildCategoryMaps(DEFAULT_CATEGORIES);
+  } else { buildCategoryMaps(DEFAULT_CATEGORIES); }
 
   renderAll();
 }
