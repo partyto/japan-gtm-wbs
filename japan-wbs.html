@@ -125,6 +125,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sa
       <p class="meta" id="mainMeta"></p>
     </div>
     <div class="hdr-right">
+      <button class="gear-btn" onclick="openSheet()" title="Google Spreadsheet에서 데이터 편집">&#9998; 데이터 변경하기</button>
       <button class="gear-btn" onclick="toggleSettings()">&#9881; 설정</button>
       <button class="gear-btn" onclick="reloadData()">&#x21BB; 새로고침</button>
     </div>
@@ -157,49 +158,57 @@ body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sa
 <script>
 // ===== DEFAULT DATA (from React component) =====
 const DEFAULT_TASKS = [
-  {id:"A-1",n:"인프라 셋팅(매장구분자)",c:"A",s:14,d:0.5,t:"B2B",st:"미착수",cr:false,dp:"",nt:"즉시 착수 가능",md:2},
-  {id:"A-2",n:"패드 일본어 (언어팩)",c:"A",s:14,d:2,t:"B2B",st:"미착수",cr:true,dp:"",nt:"⚠️ 인력 배정 필요",md:12},
-  {id:"A-3",n:"웨이팅 등록 프로세스",c:"A",s:14,d:3,t:"B2B+글로벌",st:"미착수",cr:true,dp:"B-9",nt:"서버 리전 확정 후",md:13},
-  {id:"A-4",n:"다국어 표기(외국인)",c:"A",s:18,d:2,t:"글로벌",st:"미착수",cr:false,dp:"",nt:"",md:7},
-  {id:"A-5",n:"서비스 분기 처리",c:"A",s:16,d:0.5,t:"B2B",st:"미착수",cr:false,dp:"",nt:"",md:2},
-  {id:"A-6",n:"구글맵/운영기획",c:"A",s:16,d:1,t:"글로벌",st:"미착수",cr:false,dp:"",nt:"",md:3},
-  {id:"A-7",n:"자동 호출 알림 룰",c:"A",s:22,d:0.5,t:"B2B",st:"미착수",cr:false,dp:"",nt:"",md:2},
-  {id:"A-8",n:"웨이팅 운영 지원(CS)",c:"A",s:14,d:16,t:"B2B",st:"미착수",cr:false,dp:"",nt:"비개발. 운영체계",md:0},
-  {id:"B1-1",n:"LINE 연동",c:"B1",s:14,d:8,t:"글로벌",st:"최우선",cr:true,dp:"",nt:"파트너 즉시 선정. ¥1.8M",md:15},
-  {id:"B1-2",n:"엔화 UI/현지화 표기",c:"B1",s:16,d:2,t:"글로벌",st:"미착수",cr:false,dp:"",nt:"",md:8},
-  {id:"B1-3",n:"알림톡 커스터마이징",c:"B1",s:22,d:1,t:"글로벌",st:"LINE대기",cr:false,dp:"B1-1",nt:"LINE 완료 후",md:3},
-  {id:"B1-4",n:"로컬 PG 결제 연동",c:"B1",s:14,d:10,t:"페이",st:"크리티컬",cr:true,dp:"D-1",nt:"법인 필수. 카드8주",md:58},
-  {id:"B1-5",n:"패스트트랙(유료)",c:"B1",s:24,d:2,t:"글로벌/페이",st:"대기",cr:false,dp:"B1-4",nt:"수익 직결",md:15},
-  {id:"B1-6",n:"선주문+결제+위약금",c:"B1",s:24,d:2,t:"글로벌/페이",st:"대기",cr:false,dp:"B1-4",nt:"",md:8},
-  {id:"B1-7",n:"우선입장(현장예약)",c:"B1",s:18,d:1,t:"B2B",st:"미착수",cr:false,dp:"",nt:"결제없이 선행가능",md:4},
-  {id:"B1-8",n:"결제 분기 처리",c:"B1",s:24,d:1,t:"글로벌",st:"대기",cr:false,dp:"B1-4",nt:"",md:5},
-  {id:"B1-9",n:"정산 구조",c:"B1",s:25,d:2,t:"페이/비즈",st:"리서치",cr:false,dp:"B1-4",nt:"지급대행 업체 필요",md:10},
-  {id:"B2-1",n:"GPS 위치 확인",c:"B2",s:24,d:3,t:"글로벌",st:"2순위",cr:false,dp:"",nt:"22/27 매장 요청",md:15},
-  {id:"B2-2",n:"라이브 액티비티",c:"B2",s:24,d:4,t:"글로벌 Native",st:"2순위",cr:false,dp:"",nt:"아이폰 점유율",md:20},
-  {id:"B2-3",n:"좌석타입 대기 개선",c:"B2",s:20,d:0.5,t:"B2B",st:"미착수",cr:false,dp:"",nt:"",md:2},
-  {id:"B3-1",n:"매장정보 링크/업셀링",c:"B3",s:28,d:1,t:"글로벌",st:"후순위",cr:false,dp:"",nt:"런칭 후",md:5},
-  {id:"B3-2",n:"고객 데이터 마케팅",c:"B3",s:28,d:2,t:"글로벌/비즈",st:"후순위",cr:false,dp:"",nt:"런칭 후",md:10},
-  {id:"B3-3",n:"테이블체크 연동",c:"B3",s:28,d:4,t:"B2B",st:"후순위",cr:false,dp:"",nt:"네이버 연동급. 런칭 후",md:20},
-  {id:"B3-4",n:"WhatsApp 연동",c:"B3",s:26,d:1,t:"글로벌",st:"후순위",cr:false,dp:"B1-1",nt:"LINE 후",md:6},
-  {id:"B-9",n:"일본 서버 리전",c:"BF",s:14,d:6,t:"인프라",st:"리서치",cr:true,dp:"",nt:"⚠️⚠️ DB분리시 +8주",md:30},
-  {id:"B-10",n:"개인정보 정책",c:"BF",s:14,d:4,t:"법무",st:"진행중",cr:false,dp:"",nt:"율촌 자문 진행중",md:0},
-  {id:"B-11",n:"웹페이지 통합/다국어",c:"BF",s:16,d:4,t:"비즈+글로벌",st:"검토중",cr:false,dp:"",nt:"소관 교통정리",md:20},
-  {id:"B-12",n:"글로벌앱 지역전환",c:"BF",s:18,d:6,t:"글로벌",st:"미착수",cr:true,dp:"",nt:"가장 큰 블록 30MD",md:30},
-  {id:"C-1",n:"회원연동 API 설계",c:"C",s:16,d:1,t:"기현+글로벌",st:"검토중",cr:false,dp:"",nt:"연동 방식 확정 필요",md:3},
-  {id:"C-2",n:"로그인 쿠키 공유",c:"C",s:17,d:3,t:"캐치테이블",st:"대기",cr:false,dp:"C-1",nt:"",md:15},
-  {id:"C-3",n:"LINE 회원가입",c:"C",s:14,d:2,t:"글로벌",st:"진행중",cr:false,dp:"",nt:"",md:9},
-  {id:"C-4",n:"마이다이닝 통합",c:"C",s:20,d:2,t:"캐치테이블",st:"대기",cr:false,dp:"C-2",nt:"",md:10},
-  {id:"C-5",n:"결제매장 회원필수",c:"C",s:20,d:0.5,t:"글로벌/B2B",st:"설계중",cr:false,dp:"",nt:"",md:2},
-  {id:"C-6",n:"원장 통합/분리",c:"C",s:14,d:3,t:"인프라",st:"리서치",cr:true,dp:"B-9",nt:"⚠️⚠️ 서버리전 직결",md:15},
-  {id:"C-7",n:"인앱 호출(숏컷)",c:"C",s:22,d:2,t:"캐치테이블",st:"미착수",cr:false,dp:"",nt:"",md:8},
-  {id:"D-1",n:"일본 법인 설립",c:"D",s:10,d:13,t:"경영지원",st:"진행중",cr:true,dp:"",nt:"3개월+ 소요",md:0},
-  {id:"D-2",n:"현지 계좌 개설",c:"D",s:18,d:5,t:"경영지원",st:"대기",cr:false,dp:"D-1",nt:"",md:0},
-  {id:"D-3",n:"도쿄 사무실",c:"D",s:18,d:4,t:"경영지원",st:"진행중",cr:false,dp:"",nt:"",md:0},
-  {id:"D-4",n:"현지 인력 채용",c:"D",s:18,d:6,t:"HR",st:"준비중",cr:false,dp:"",nt:"",md:0},
-  {id:"Q-1",n:"중간 점검 QA",c:"Q",s:26,d:2,t:"QA",st:"미착수",cr:false,dp:"",nt:"",md:0},
-  {id:"Q-2",n:"통합 테스트",c:"Q",s:28,d:1,t:"QA",st:"미착수",cr:true,dp:"Q-1",nt:"",md:0},
-  {id:"Q-3",n:"현지 테스트",c:"Q",s:29,d:1,t:"전체",st:"미착수",cr:true,dp:"Q-2",nt:"",md:0},
-  {id:"Q-4",n:"\uD83D\uDE80 런칭",c:"Q",s:30,d:0.3,t:"전체",st:"목표",cr:true,dp:"Q-3",nt:"",md:0},
+  // K — 국내솔루션 현지화
+  {id:"K-1", n:"인프라 셋팅(매장구분자)",   c:"K",   s:14,d:0.6,  t:"B2B",          st:"미착수",  cr:false,dp:"",      nt:"즉시 착수 가능",        md:2},
+  {id:"K-2", n:"패드 일본어 (언어팩)",       c:"K",   s:14,d:2,    t:"B2B",          st:"미착수",  cr:true, dp:"",      nt:"⚠️ 인력 배정 필요",     md:12},
+  {id:"K-3", n:"웨이팅 등록 프로세스",       c:"K",   s:14,d:3,    t:"B2B+글로벌",   st:"미착수",  cr:true, dp:"INF-1", nt:"서버 리전 확정 후",     md:13},
+  {id:"K-4", n:"다국어 표기(외국인)",         c:"K",   s:18,d:2,    t:"글로벌",       st:"미착수",  cr:false,dp:"",      nt:"",                      md:7},
+  {id:"K-5", n:"서비스 분기 처리",            c:"K",   s:16,d:0.6,  t:"B2B",          st:"미착수",  cr:false,dp:"",      nt:"",                      md:2},
+  {id:"K-6", n:"구글맵/운영기획",             c:"K",   s:16,d:1,    t:"글로벌",       st:"미착수",  cr:false,dp:"",      nt:"",                      md:3},
+  {id:"K-7", n:"자동 호출 알림 룰",           c:"K",   s:22,d:0.6,  t:"B2B",          st:"미착수",  cr:false,dp:"",      nt:"",                      md:2},
+  {id:"K-8", n:"웨이팅 운영 지원(CS)",        c:"K",   s:14,d:16,   t:"B2B",          st:"미착수",  cr:false,dp:"",      nt:"비개발. 운영체계",      md:0},
+  // J1 — 일본1순위: 핵심기능·노쇼방지
+  {id:"J1-1",n:"LINE 연동",                   c:"J1",  s:14,d:8,    t:"글로벌",       st:"최우선",  cr:true, dp:"",      nt:"파트너 즉시 선정. ¥1.8M",md:15},
+  {id:"J1-2",n:"메시지 커스터마이징",         c:"J1",  s:22,d:1,    t:"글로벌",       st:"LINE대기",cr:false,dp:"J1-1", nt:"LINE 완료 후",          md:3},
+  {id:"J1-3",n:"엔화 UI/현지화 표기",         c:"J1",  s:16,d:2,    t:"글로벌",       st:"미착수",  cr:false,dp:"",      nt:"",                      md:8},
+  {id:"J1-4",n:"로컬 PG 결제 연동",           c:"J1",  s:14,d:10,   t:"페이",         st:"크리티컬",cr:true, dp:"D-1",  nt:"법인 필수. 카드8주",    md:58},
+  {id:"J1-5",n:"패스트트랙(유료)",            c:"J1",  s:24,d:2,    t:"글로벌/페이",  st:"대기",    cr:false,dp:"J1-4", nt:"수익 직결",             md:15},
+  {id:"J1-6",n:"선주문+결제+위약금",          c:"J1",  s:24,d:2,    t:"글로벌/페이",  st:"대기",    cr:false,dp:"J1-4", nt:"",                      md:8},
+  {id:"J1-7",n:"우선입장(현장예약)",          c:"J1",  s:18,d:1,    t:"B2B",          st:"미착수",  cr:false,dp:"",      nt:"결제없이 선행가능",     md:4},
+  {id:"J1-8",n:"결제 분기 처리",              c:"J1",  s:24,d:1,    t:"글로벌",       st:"대기",    cr:false,dp:"J1-4", nt:"",                      md:5},
+  {id:"J1-9",n:"정산 구조",                   c:"J1",  s:25,d:2,    t:"페이/비즈",    st:"리서치",  cr:false,dp:"J1-4", nt:"지급대행 업체 필요",    md:10},
+  // J2 — 일본2순위: 운영효율
+  {id:"J2-1",n:"GPS 위치 확인",               c:"J2",  s:24,d:3,    t:"글로벌",       st:"2순위",   cr:false,dp:"",      nt:"22/27 매장 요청",       md:15},
+  {id:"J2-2",n:"라이브 액티비티",             c:"J2",  s:24,d:4,    t:"글로벌 Native",st:"2순위",   cr:false,dp:"",      nt:"아이폰 점유율",         md:20},
+  {id:"J2-3",n:"좌석타입 대기 개선",          c:"J2",  s:20,d:0.6,  t:"B2B",          st:"미착수",  cr:false,dp:"",      nt:"",                      md:2},
+  // J3 — 일본3순위: 부가가치
+  {id:"J3-1",n:"매장정보 링크/업셀링",        c:"J3",  s:28,d:1,    t:"글로벌",       st:"후순위",  cr:false,dp:"",      nt:"런칭 후",               md:5},
+  {id:"J3-2",n:"고객 데이터 마케팅",          c:"J3",  s:28,d:2,    t:"글로벌/비즈",  st:"후순위",  cr:false,dp:"",      nt:"런칭 후",               md:10},
+  {id:"J3-3",n:"테이블체크 연동",             c:"J3",  s:28,d:4,    t:"B2B",          st:"후순위",  cr:false,dp:"",      nt:"네이버 연동급. 런칭 후",md:20},
+  {id:"J3-4",n:"WhatsApp 연동",               c:"J3",  s:26,d:1,    t:"글로벌",       st:"후순위",  cr:false,dp:"J1-1", nt:"LINE 후",               md:6},
+  // INF — 인프라/법적 기반
+  {id:"INF-1",n:"일본 서버 리전",             c:"INF", s:14,d:6,    t:"인프라",       st:"리서치",  cr:true, dp:"",      nt:"⚠️⚠️ DB분리시 +8주",   md:30},
+  {id:"INF-2",n:"개인정보 정책",              c:"INF", s:14,d:4,    t:"법무",         st:"진행중",  cr:false,dp:"",      nt:"율촌 자문 진행중",      md:0},
+  {id:"INF-3",n:"웹페이지 통합/다국어",       c:"INF", s:16,d:4,    t:"비즈+글로벌",  st:"검토중",  cr:false,dp:"",      nt:"소관 교통정리",         md:20},
+  {id:"INF-4",n:"글로벌앱 지역전환",          c:"INF", s:18,d:6,    t:"글로벌",       st:"미착수",  cr:true, dp:"",      nt:"가장 큰 블록 30MD",     md:30},
+  // C — 회원관리 체계
+  {id:"C-1", n:"회원연동 API 설계",           c:"C",   s:16,d:1,    t:"기현+글로벌",  st:"검토중",  cr:false,dp:"",      nt:"연동 방식 확정 필요",   md:3},
+  {id:"C-2", n:"로그인 쿠키 공유",            c:"C",   s:17,d:3,    t:"캐치테이블",   st:"대기",    cr:false,dp:"C-1",  nt:"",                      md:15},
+  {id:"C-3", n:"LINE 회원가입",               c:"C",   s:14,d:2,    t:"글로벌",       st:"진행중",  cr:false,dp:"",      nt:"",                      md:9},
+  {id:"C-4", n:"마이다이닝 통합",             c:"C",   s:20,d:2,    t:"캐치테이블",   st:"대기",    cr:false,dp:"C-2",  nt:"",                      md:10},
+  {id:"C-5", n:"결제매장 회원필수",           c:"C",   s:20,d:0.6,  t:"글로벌/B2B",   st:"설계중",  cr:false,dp:"",      nt:"",                      md:2},
+  {id:"C-6", n:"원장 통합/분리",              c:"C",   s:14,d:3,    t:"인프라",       st:"리서치",  cr:true, dp:"INF-1", nt:"⚠️⚠️ 서버리전 직결",   md:15},
+  {id:"C-7", n:"인앱 호출(숏컷)",             c:"C",   s:22,d:2,    t:"캐치테이블",   st:"미착수",  cr:false,dp:"",      nt:"",                      md:8},
+  // D — 사업/법무
+  {id:"D-1", n:"일본 법인 설립",              c:"D",   s:10,d:13,   t:"경영지원",     st:"진행중",  cr:true, dp:"",      nt:"3개월+ 소요",           md:0},
+  {id:"D-2", n:"현지 계좌 개설",              c:"D",   s:18,d:5,    t:"경영지원",     st:"대기",    cr:false,dp:"D-1",  nt:"",                      md:0},
+  {id:"D-3", n:"도쿄 사무실",                 c:"D",   s:18,d:4,    t:"경영지원",     st:"진행중",  cr:false,dp:"",      nt:"",                      md:0},
+  {id:"D-4", n:"현지 인력 채용",              c:"D",   s:18,d:6,    t:"HR",           st:"준비중",  cr:false,dp:"",      nt:"",                      md:0},
+  // Q — QA·런칭
+  {id:"Q-1", n:"중간 점검 QA",               c:"Q",   s:26,d:2,    t:"QA",           st:"미착수",  cr:false,dp:"",      nt:"",                      md:0},
+  {id:"Q-2", n:"통합 테스트",                 c:"Q",   s:28,d:1,    t:"QA",           st:"미착수",  cr:true, dp:"Q-1",  nt:"",                      md:0},
+  {id:"Q-3", n:"현지 테스트",                 c:"Q",   s:29,d:1,    t:"전체",         st:"미착수",  cr:true, dp:"Q-2",  nt:"",                      md:0},
+  {id:"Q-4", n:"🚀 런칭",                     c:"Q",   s:30,d:0.3,  t:"전체",         st:"목표",    cr:true, dp:"Q-3",  nt:"",                      md:0},
 ];
 const DEFAULT_DECISIONS = [
   {id:"\u2776",n:"DB 분리 범위",due:"3/28",st:"질의중",imp:"일정 0~8주 차이"},
@@ -223,15 +232,17 @@ const DEFAULT_RESOURCES = [
 
 // ===== DEFAULT CATEGORIES (구글 시트 'categories' 탭으로 관리 가능) =====
 const DEFAULT_CATEGORIES = [
-  {key:"A",  name:"A. 기존솔루션 현지화",       color:"#3B82F6", filterLabel:"기존솔루션"},
-  {key:"B1", name:"B-1순위: 핵심기능·노쇼방지",  color:"#7C3AED", filterLabel:"1순위"},
-  {key:"B2", name:"B-2순위: 운영효율",           color:"#A78BFA", filterLabel:"2순위"},
-  {key:"B3", name:"B-3순위: 부가가치",           color:"#C4B5FD", filterLabel:"3순위"},
-  {key:"BF", name:"B-기반: 인프라/법적",         color:"#6D28D9", filterLabel:"인프라"},
-  {key:"C",  name:"C. 회원관리 체계",            color:"#10B981", filterLabel:"회원"},
-  {key:"D",  name:"D. 사업/법무",               color:"#F59E0B", filterLabel:"사업"},
-  {key:"Q",  name:"QA·런칭",                    color:"#EF4444", filterLabel:"QA"},
+  {key:"K",   name:"[필수] 국내솔루션 현지화",        color:"#3B82F6", filterLabel:"국내솔루션"},
+  {key:"J1",  name:"[일본1순위] 핵심기능·노쇼방지",   color:"#7C3AED", filterLabel:"일본1순위"},
+  {key:"J2",  name:"[일본2순위] 운영효율",            color:"#A78BFA", filterLabel:"일본2순위"},
+  {key:"J3",  name:"[일본3순위] 부가가치",            color:"#C4B5FD", filterLabel:"일본3순위"},
+  {key:"INF", name:"[필수] 인프라/법적 기반",         color:"#6D28D9", filterLabel:"인프라"},
+  {key:"C",   name:"[필수] 회원관리 체계",            color:"#10B981", filterLabel:"회원"},
+  {key:"D",   name:"[기타] 사업/법무",               color:"#F59E0B", filterLabel:"사업"},
+  {key:"Q",   name:"[최종] QA·런칭",                 color:"#EF4444", filterLabel:"QA"},
 ];
+// Google Spreadsheet ID (기본값 — 설정에서 변경 가능)
+const DEFAULT_SHEET_ID = "1ZZCLbRp-9x9058XtgPiw-hG0fnrSWJSHRhFw-mTsNnQ";
 
 // ===== CONSTANTS (categories 시트 로드 전 기본값, reloadData 후 동적으로 재구성됨) =====
 const SC = {"최우선":"#DC2626","크리티컬":"#DC2626","진행중":"#2563EB","리서치":"#D97706","검토중":"#D97706","설계중":"#D97706","준비중":"#D97706","미착수":"#6B7280","대기":"#9CA3AF","LINE대기":"#9CA3AF","후순위":"#D1D5DB","2순위":"#D1D5DB","목표":"#DC2626","완료":"#059669"};
@@ -260,6 +271,12 @@ let decisions = DEFAULT_DECISIONS;
 let resources = DEFAULT_RESOURCES;
 let currentTab = "timeline";
 let activeFilters = new Set(['all']); // multi-select set
+
+// ===== SHEET LINK =====
+function openSheet() {
+  const sid = localStorage.getItem('wbs_sheet_id') || DEFAULT_SHEET_ID;
+  window.open(`https://docs.google.com/spreadsheets/d/${sid}/edit`, '_blank');
+}
 
 // ===== SETTINGS =====
 function toggleSettings() {
@@ -301,7 +318,7 @@ function weekToDateLabel(weekNum) {
 
 // ===== DATA LOADING =====
 async function fetchSheet(sheetName) {
-  const sid = localStorage.getItem('wbs_sheet_id');
+  const sid = localStorage.getItem('wbs_sheet_id') || DEFAULT_SHEET_ID;
   if (!sid) return null;
   const url = `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
   try {
@@ -319,19 +336,27 @@ function parseBool(v) {
 }
 
 async function reloadData() {
-  const sid = localStorage.getItem('wbs_sheet_id');
-  if (!sid) {
-    buildCategoryMaps(DEFAULT_CATEGORIES);
-    tasks = DEFAULT_TASKS; decisions = DEFAULT_DECISIONS; resources = DEFAULT_RESOURCES;
-    renderAll(); return;
-  }
+  const sid = localStorage.getItem('wbs_sheet_id') || DEFAULT_SHEET_ID;
 
   const [tRes, dRes, rRes, cRes] = await Promise.all([
     fetchSheet('tasks'), fetchSheet('decisions'), fetchSheet('resources'), fetchSheet('categories')
   ]);
 
   if (tRes && tRes.data.length) {
+    // Auto-assign sequential IDs for rows with empty id column
+    const catCounters = {};
     tasks = tRes.data.map(r => {
+      const cat = (r.category || 'K').trim();
+      let taskId;
+      const rawId = (r.id || '').trim();
+      if (/^\d+$/.test(rawId)) {
+        taskId = cat + '-' + rawId;  // e.g. K-1, J1-2
+      } else if (!rawId) {
+        catCounters[cat] = (catCounters[cat] || 0) + 1;
+        taskId = cat + '-' + catCounters[cat];  // auto-assign C-1, D-1…
+      } else {
+        taskId = rawId;  // already composite
+      }
       // Date-based: startDate + endDate → s, d
       let s = parseInt(r.startWeek) || 14;
       let d = parseFloat(r.duration) || 1;
@@ -348,7 +373,7 @@ async function reloadData() {
         }
       }
       return {
-        id: r.id || '', n: r.name || '', c: r.category || 'A',
+        id: taskId, n: r.name || '', c: cat,
         s, d, t: r.team || '', st: r.status || '미착수',
         cr: parseBool(r.critical), dp: r.dependency || '',
         nt: r.note || '', md: parseInt(r.mandays) || 0,
@@ -373,10 +398,16 @@ async function reloadData() {
   } else { resources = DEFAULT_RESOURCES; }
 
   // categories 시트: key, name, color, filterLabel
+  // KEY_ALIASES: 스프레드시트의 key가 tasks의 category와 다를 경우 정규화
+  const KEY_ALIASES = { 'Infra': 'INF', 'infra': 'INF', 'BF': 'INF' };
   if (cRes && cRes.data.length) {
     const cats = cRes.data
       .filter(r => r.key && r.name && r.color)
-      .map(r => ({ key: r.key.trim(), name: r.name.trim(), color: r.color.trim(), filterLabel: (r.filterLabel || r.key).trim() }));
+      .map(r => {
+        const rawKey = r.key.trim();
+        const key = KEY_ALIASES[rawKey] || rawKey;
+        return { key, name: r.name.trim(), color: r.color.trim(), filterLabel: (r.filterLabel || key).trim() };
+      });
     if (cats.length) buildCategoryMaps(cats);
     else buildCategoryMaps(DEFAULT_CATEGORIES);
   } else { buildCategoryMaps(DEFAULT_CATEGORIES); }
