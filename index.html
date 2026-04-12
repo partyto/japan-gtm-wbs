@@ -758,73 +758,101 @@ async function fetchWithFallback(url) {
 async function loadData() {
   const rawUrl = CONFIG.sheetUrl;
 
-  // Extract spreadsheet ID and gid from URL
-  const sheetsMatch = rawUrl ? rawUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/) : null;
+  // 웹에 게시(pub) URL인지 확인 — 2PACX 또는 /pub? 포함
+  const isPubUrl = rawUrl && (rawUrl.includes('/e/2PACX') || rawUrl.includes('/pub?') || rawUrl.includes('/pub?output=csv'));
+
+  // Extract spreadsheet ID and gid from URL (일반 스프레드시트 URL만)
+  const sheetsMatch = (!isPubUrl && rawUrl) ? rawUrl.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/) : null;
   const spreadsheetId = sheetsMatch ? sheetsMatch[1] : null;
   const gidMatch = rawUrl ? rawUrl.match(/[#&?]gid=(\d+)/) : null;
   const gid = gidMatch ? gidMatch[1] : null;
 
-  document.getElementById('dataSource').textContent = spreadsheetId
+  document.getElementById('dataSource').textContent = (spreadsheetId || isPubUrl)
     ? '구글 스프레드시트 연동 중...'
     : '로컬 CSV';
 
   try {
     let result;
 
-    if (spreadsheetId && !gAccessToken) {
-      // Need access token — show authorize prompt
-      document.getElementById('kpiGrid').innerHTML = `
-        <div class="kpi-card" style="grid-column: 1/-1; text-align:center; padding:40px;">
-          <div style="font-size:16px; font-weight:600; color:var(--text);">스프레드시트 접근 권한이 필요합니다</div>
-          <div style="color:var(--text-secondary); margin-top:8px; font-size:13px;">Google 스프레드시트 데이터를 불러오려면 읽기 권한을 허용해주세요.</div>
-          <button class="btn btn-primary" style="margin-top:16px;" onclick="requestSheetsAccess()">📊 스프레드시트 권한 허용</button>
-        </div>`;
-      return;
-    }
-
-    if (spreadsheetId && gAccessToken) {
-      // Use Sheets API v4 with access token
-      let sheetName = '전체wbs'; // default
-      // Get sheet name from gid
-      if (gid) {
-        try {
-          const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`, {
-            headers: { 'Authorization': `Bearer ${gAccessToken}` }
-          });
-          if (metaResp.ok) {
-            const meta = await metaResp.json();
-            const found = meta.sheets.find(s => String(s.properties.sheetId) === gid);
-            if (found) sheetName = found.properties.title;
+    // 웹에 게시 URL → 직접 CSV fetch (OAuth 불필요)
+    if (isPubUrl) {
+      const pubCsvUrl = rawUrl.includes('output=csv') ? rawUrl : rawUrl + (rawUrl.includes('?') ? '&' : '?') + 'output=csv';
+      const resp = await fetch(pubCsvUrl);
+      if (!resp.ok) throw new Error(`CSV fetch 실패: HTTP ${resp.status}`);
+      let text = await resp.text();
+      // 시트 상단의 설명 행 제거 — 실제 헤더(Phase,WBS#,...)가 나올 때까지 건너뜀
+      const lines = text.split('\n');
+      const headerIdx = lines.findIndex(l => l.startsWith('Phase,') || l.startsWith('"Phase",'));
+      if (headerIdx > 0) {
+        text = lines.slice(headerIdx).join('\n');
+      }
+      result = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
+    } else if (spreadsheetId) {
+      // 1차: gviz CSV export 시도 (웹에 게시된 시트 — OAuth 불필요)
+      let sheetParam = gid ? `&gid=${gid}` : '';
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv${sheetParam}`;
+      let gvizOk = false;
+      try {
+        const gvizResp = await fetch(gvizUrl);
+        if (gvizResp.ok) {
+          const gvizText = await gvizResp.text();
+          if (gvizText && !gvizText.includes('<!DOCTYPE html>')) {
+            result = Papa.parse(gvizText, { header: true, skipEmptyLines: true });
+            gvizOk = true;
           }
-        } catch(e) { console.warn('시트 메타 조회 실패, 기본 시트명 사용:', e); }
+        }
+      } catch(e) { console.warn('gviz CSV 시도 실패:', e); }
+
+      // 2차: OAuth 토큰으로 Sheets API 시도
+      if (!gvizOk && gAccessToken) {
+        let sheetName = '전체wbs';
+        if (gid) {
+          try {
+            const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`, {
+              headers: { 'Authorization': `Bearer ${gAccessToken}` }
+            });
+            if (metaResp.ok) {
+              const meta = await metaResp.json();
+              const found = meta.sheets.find(s => String(s.properties.sheetId) === gid);
+              if (found) sheetName = found.properties.title;
+            }
+          } catch(e) { console.warn('시트 메타 조회 실패, 기본 시트명 사용:', e); }
+        }
+
+        const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`;
+        const resp = await fetch(apiUrl, {
+          headers: { 'Authorization': `Bearer ${gAccessToken}` }
+        });
+
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.values && json.values.length > 1) {
+            const headers = json.values[0];
+            const rows = json.values.slice(1).map(row => {
+              const obj = {};
+              headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+              return obj;
+            });
+            result = { data: rows };
+          }
+        } else if (resp.status === 401 || resp.status === 403) {
+          sessionStorage.removeItem('wbs_access_token');
+          gAccessToken = null;
+        }
       }
 
-      const apiUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`;
-      const resp = await fetch(apiUrl, {
-        headers: { 'Authorization': `Bearer ${gAccessToken}` }
-      });
-
-      if (resp.status === 401 || resp.status === 403) {
-        // Token expired — clear and re-auth
-        sessionStorage.removeItem('wbs_access_token');
-        sessionStorage.removeItem('wbs_authed');
-        gAccessToken = null;
-        location.reload();
+      // 3차: 둘 다 실패 → OAuth 권한 요청 UI
+      if (!gvizOk && !gAccessToken && !result) {
+        document.getElementById('kpiGrid').innerHTML = `
+          <div class="kpi-card" style="grid-column: 1/-1; text-align:center; padding:40px;">
+            <div style="font-size:16px; font-weight:600; color:var(--text);">스프레드시트 접근 권한이 필요합니다</div>
+            <div style="color:var(--text-secondary); margin-top:8px; font-size:13px;">Google 스프레드시트 데이터를 불러오려면 읽기 권한을 허용해주세요.</div>
+            <div style="color:var(--text-muted); margin-top:6px; font-size:12px;">또는 스프레드시트에서 파일 → 공유 → 웹에 게시를 설정하면 권한 없이 연동됩니다.</div>
+            <button class="btn btn-primary" style="margin-top:16px;" onclick="requestSheetsAccess()">📊 스프레드시트 권한 허용</button>
+          </div>`;
         return;
       }
-      if (!resp.ok) throw new Error(`Sheets API 에러: HTTP ${resp.status}`);
 
-      const json = await resp.json();
-      const rows = json.values;
-      if (!rows || rows.length < 2) throw new Error('데이터가 비어 있습니다.');
-
-      const headers = rows[0];
-      const data = rows.slice(1).map(row => {
-        const obj = {};
-        headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? String(row[i]) : ''; });
-        return obj;
-      });
-      result = { data };
     } else {
       // Fallback: local CSV or pub URL
       const csvUrl = rawUrl ? normalizeSheetUrl(rawUrl) : CONFIG.localCsv;
