@@ -555,7 +555,7 @@ tbody tr:hover td { background: var(--accent-light); }
     </div>
     <div style="display:flex; align-items:center; gap:16px;">
       <div class="header-actions">
-        <button class="btn" onclick="toggleSettings()">Settings</button>
+        <button class="btn" id="settingsBtn" onclick="toggleSettings()" style="display:none;">Settings</button>
         <a id="sheetLink" class="btn" target="_blank" rel="noopener" style="display:none; text-decoration:none;">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px; margin-right:4px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>스프레드시트
         </a>
@@ -631,10 +631,21 @@ tbody tr:hover td { background: var(--accent-light); }
 
 <script>
 // ============ CONFIG ============
+// 관리자만 Settings 수정 가능, 그 외 사용자는 아래 DEFAULTS 값으로 강제 연결됩니다.
+const ADMIN_EMAILS = ['hw.joo@catchtable.co.kr'];
+const DEFAULTS = {
+  sheetUrl:     'https://docs.google.com/spreadsheets/d/e/2PACX-1vQQIyuTXF1QKlTWePAvIiuKhurPEIDl_-5WkQdP60TCVxDAXHn8ey1Qrx53mUnxiwTs5tliBd8Ol3jH/pub?output=csv',
+  sheetEditUrl: 'https://docs.google.com/spreadsheets/d/1w_ftIzT-e4WHwuP6u6wesFXB303heUvlCRpVlSbwMBM/edit?usp=sharing',
+  localCsv:     'sample-data.csv',
+};
+function isAdminEmail(email) {
+  return !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+}
+// CONFIG는 일단 DEFAULTS로 초기화 → 로그인 후 관리자면 localStorage 값으로 덮어씌움
 const CONFIG = {
-  sheetUrl:     localStorage.getItem('wbs_sheet_url') || '',
-  sheetEditUrl: localStorage.getItem('wbs_sheet_edit_url') || '',
-  localCsv:     localStorage.getItem('wbs_local_csv') || 'sample-data.csv',
+  sheetUrl:     DEFAULTS.sheetUrl,
+  sheetEditUrl: DEFAULTS.sheetEditUrl,
+  localCsv:     DEFAULTS.localCsv,
 };
 
 const STATUS_COLORS = {
@@ -889,6 +900,7 @@ async function loadData() {
   } catch (e) {
     console.error('Data load error:', e);
     const isSheets = !!spreadsheetId;
+    const isAdmin = isAdminEmail(sessionStorage.getItem('wbs_authed'));
     document.getElementById('dataSource').textContent = '로드 실패';
     document.getElementById('kpiGrid').innerHTML = `
       <div class="kpi-card" style="grid-column: 1/-1; text-align:center; padding:40px;">
@@ -898,11 +910,11 @@ async function loadData() {
         <div style="margin-top:16px; text-align:left; background:rgba(59,130,246,0.08); border-radius:8px; padding:16px; font-size:12px; color:var(--text-secondary);">
           <div style="font-weight:600; color:var(--text); margin-bottom:8px;">문제 해결:</div>
           <div>1. Google 로그인 시 스프레드시트 읽기 권한을 허용해주세요.</div>
-          <div>2. Settings에서 스프레드시트 URL(편집 URL도 가능)을 확인해주세요.</div>
-          <div>3. 해당 시트에 대한 읽기 권한이 있는 계정으로 로그인하세요.</div>
+          ${isAdmin ? '<div>2. Settings에서 스프레드시트 URL(편집 URL도 가능)을 확인해주세요.</div>' : '<div>2. 관리자에게 문의해주세요.</div>'}
+          <div>${isAdmin ? '3' : '3'}. 해당 시트에 대한 읽기 권한이 있는 계정으로 로그인하세요.</div>
           <div style="margin-top:8px;">토큰이 만료되었다면 새로고침 후 다시 로그인하세요.</div>
         </div>` : ''}
-        <button class="btn btn-primary" style="margin-top:16px;" onclick="toggleSettings()">Settings 열기</button>
+        ${isAdmin ? '<button class="btn btn-primary" style="margin-top:16px;" onclick="toggleSettings()">Settings 열기</button>' : ''}
       </div>`;
   }
 }
@@ -1301,6 +1313,7 @@ function hideTooltip() {
 }
 
 function toggleSettings() {
+  if (!isAdminEmail(sessionStorage.getItem('wbs_authed'))) return;
   document.getElementById('settingsPanel').classList.toggle('active');
   document.getElementById('sheetUrl').value = CONFIG.sheetUrl;
   document.getElementById('sheetEditUrl').value = CONFIG.sheetEditUrl;
@@ -1308,6 +1321,7 @@ function toggleSettings() {
 }
 
 function saveSettings() {
+  if (!isAdminEmail(sessionStorage.getItem('wbs_authed'))) return;
   const rawUrl = document.getElementById('sheetUrl').value.trim();
   CONFIG.sheetUrl = normalizeSheetUrl(rawUrl);
   CONFIG.sheetEditUrl = document.getElementById('sheetEditUrl').value.trim();
@@ -1351,8 +1365,26 @@ function showDashboard(email) {
   sessionStorage.setItem('wbs_authed', email);
   document.getElementById('authGate').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
+  applyAdminConfig(email);
   updateSheetLink();
   loadData();
+}
+
+// 관리자만 localStorage 값을 사용하도록 + Settings 버튼 노출
+function applyAdminConfig(email) {
+  const admin = isAdminEmail(email);
+  const btn = document.getElementById('settingsBtn');
+  if (btn) btn.style.display = admin ? '' : 'none';
+  if (admin) {
+    CONFIG.sheetUrl     = localStorage.getItem('wbs_sheet_url')      || DEFAULTS.sheetUrl;
+    CONFIG.sheetEditUrl = localStorage.getItem('wbs_sheet_edit_url') || DEFAULTS.sheetEditUrl;
+    CONFIG.localCsv     = localStorage.getItem('wbs_local_csv')      || DEFAULTS.localCsv;
+  } else {
+    // 비관리자는 무조건 코드에 박힌 DEFAULTS 사용 (localStorage 무시)
+    CONFIG.sheetUrl     = DEFAULTS.sheetUrl;
+    CONFIG.sheetEditUrl = DEFAULTS.sheetEditUrl;
+    CONFIG.localCsv     = DEFAULTS.localCsv;
+  }
 }
 
 function showAuthError(msg) {
